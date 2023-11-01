@@ -7,7 +7,6 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.MediaController
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.navArgs
@@ -20,11 +19,11 @@ class VideoPlayerFragment : Fragment() {
     private var _binding: FragmentVideoPlayerBinding? = null
     private val binding get() = _binding!!
 
-    private val videoUpdateHandler = Handler(Looper.getMainLooper())
-    private var isSeeking = false
-
     private val viewModel: VideoPlayerViewModel by viewModels()
     private val args: VideoPlayerFragmentArgs by navArgs()
+    private var isSeeking = false
+    private val videoUpdateHandler = Handler(Looper.getMainLooper())
+
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -32,42 +31,54 @@ class VideoPlayerFragment : Fragment() {
     ): View {
         _binding = FragmentVideoPlayerBinding.inflate(inflater, container, false)
 
-        val videoUri = viewModel.videoUri.value ?: args.videoURI
-        setupVideoView(videoUri)
+        viewModel.setVideoUri(args.videoURI)
+        setupVideoView()
         setupPlayPauseButton()
         setupVideoSeekBar()
+        observeEvents()
 
         return binding.root
     }
 
-    private fun setupVideoView(videoUri: String) {
-        val mediaController = MediaController(requireContext())
-        mediaController.setAnchorView(binding.videoView)
+    private fun observeEvents() {
+        viewModel.videoUri.observe(viewLifecycleOwner) { videoUri ->
+            setupVideoView()
+        }
 
-        binding.videoView.setMediaController(mediaController)
-        binding.videoView.setVideoURI(Uri.parse(videoUri))
-        binding.videoView.start()
+        viewModel.buttonText.observe(viewLifecycleOwner) { buttonText ->
+            binding.playPauseVideoButton.text = buttonText
+        }
+
+        viewModel.getDuration().observe(viewLifecycleOwner) { currentPosition ->
+            binding.videoSeekbar.progress = currentPosition
+        }
     }
 
-    private fun setupPlayPauseButton() {
-        binding.playPauseVideoButton.setOnClickListener {
-            if (binding.videoView.isPlaying) {
-                pauseVideo()
-            } else {
-                playVideo()
+    private fun setupVideoView() {
+        val videoUri = viewModel.videoUri.value
+        if (videoUri != null) {
+            binding.videoView.setVideoURI(Uri.parse(videoUri))
+            binding.videoView.setOnPreparedListener { mp ->
+                mp.isLooping = true
+                val savedPosition = viewModel.getCurrentPosition()
+                binding.videoSeekbar.max = viewModel.getDuration().value ?: 0
+                binding.videoView.seekTo(savedPosition)
+                binding.videoView.start()
             }
         }
     }
 
-    private fun playVideo() {
-        binding.videoView.start()
-        binding.playPauseVideoButton.text = "PAUSE"
+    private fun setupPlayPauseButton() {
+        binding.playPauseVideoButton.setOnClickListener {
+            viewModel.togglePlayback()
+            if (!viewModel.isPlaying()) {
+                binding.videoView.pause()
+            } else{
+                binding.videoView.start()
+            }
+        }
     }
 
-    private fun pauseVideo() {
-        binding.videoView.pause()
-        binding.playPauseVideoButton.text = "PLAY"
-    }
 
     private fun setupVideoSeekBar() {
         binding.videoSeekbar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -111,18 +122,11 @@ class VideoPlayerFragment : Fragment() {
         videoUpdateHandler.post(updateSeekBarRunnable)
     }
 
-    override fun onStop() {
-        super.onStop()
-        pauseVideo()
-    }
-
     override fun onDestroyView() {
         super.onDestroyView()
+        val currentPosition = binding.videoView.currentPosition
+        viewModel.setCurrentPosition(currentPosition)
         binding.videoView.stopPlayback()
         _binding = null
-        videoUpdateHandler.removeCallbacksAndMessages(null)
     }
 }
-
-
-
