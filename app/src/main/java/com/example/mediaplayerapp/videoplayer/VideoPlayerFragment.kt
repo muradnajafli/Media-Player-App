@@ -31,13 +31,18 @@ class VideoPlayerFragment : Fragment() {
     ): View {
         _binding = FragmentVideoPlayerBinding.inflate(inflater, container, false)
 
+
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
         viewModel.setVideoUri(args.videoURI)
         setupVideoView()
         setupPlayPauseButton()
         setupVideoSeekBar()
         observeEvents()
 
-        return binding.root
     }
 
     private fun observeEvents() {
@@ -100,7 +105,7 @@ class VideoPlayerFragment : Fragment() {
 
         val updateSeekBarRunnable = object : Runnable {
             override fun run() {
-                if (!isSeeking) {
+                if (!isSeeking && view != null) {
                     val currentPosition = binding.videoView.currentPosition
                     val totalDuration = binding.videoView.duration
 
