@@ -24,38 +24,28 @@ class VideoPlayerFragment : Fragment() {
     private var isSeeking = false
     private val videoUpdateHandler = Handler(Looper.getMainLooper())
 
-
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentVideoPlayerBinding.inflate(inflater, container, false)
-
-
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         viewModel.setVideoUri(args.videoURI)
-        setupVideoView()
         setupPlayPauseButton()
-        setupVideoSeekBar()
         observeEvents()
-
     }
 
     private fun observeEvents() {
-        viewModel.videoUri.observe(viewLifecycleOwner) { videoUri ->
+        viewModel.videoUri.observe(viewLifecycleOwner) {
             setupVideoView()
         }
 
         viewModel.buttonText.observe(viewLifecycleOwner) { buttonText ->
             binding.playPauseVideoButton.text = buttonText
-        }
-
-        viewModel.getDuration().observe(viewLifecycleOwner) { currentPosition ->
-            binding.videoSeekbar.progress = currentPosition
         }
     }
 
@@ -66,9 +56,12 @@ class VideoPlayerFragment : Fragment() {
             binding.videoView.setOnPreparedListener { mp ->
                 mp.isLooping = true
                 val savedPosition = viewModel.getCurrentPosition()
-                binding.videoSeekbar.max = viewModel.getDuration().value ?: 0
+                binding.videoSeekbar.max = mp.duration
                 binding.videoView.seekTo(savedPosition)
-                binding.videoView.start()
+                if (viewModel.isPlaying()) {
+                    binding.videoView.start()
+                }
+                setupVideoSeekBar()
             }
         }
     }
@@ -78,7 +71,7 @@ class VideoPlayerFragment : Fragment() {
             viewModel.togglePlayback()
             if (!viewModel.isPlaying()) {
                 binding.videoView.pause()
-            } else{
+            } else {
                 binding.videoView.start()
             }
         }
@@ -120,18 +113,17 @@ class VideoPlayerFragment : Fragment() {
                         TimeUnit.MILLISECONDS.toSeconds(totalDuration.toLong()) % 60
                     )
                     binding.timerTextView.text = formattedTime
+                    viewModel.setCurrentPosition(currentPosition)
                 }
-                videoUpdateHandler.postDelayed(this, 1000)
+                videoUpdateHandler.postDelayed(this, 500)
             }
         }
         videoUpdateHandler.post(updateSeekBarRunnable)
     }
 
     override fun onDestroyView() {
-        super.onDestroyView()
-        val currentPosition = binding.videoView.currentPosition
-        viewModel.setCurrentPosition(currentPosition)
         binding.videoView.stopPlayback()
         _binding = null
+        super.onDestroyView()
     }
 }
